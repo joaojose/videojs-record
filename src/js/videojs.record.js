@@ -1355,7 +1355,7 @@
                 this.player().recordCanvas.show();
 
                 // stop recording
-                this.stop();cd 
+                this.stop();
                 this.player().trigger('startRecord');
             };
 
