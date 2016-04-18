@@ -310,6 +310,11 @@
             this.recordAnimation = this.options_.options.animation;
             this.maxLength = this.options_.options.maxLength;
             this.debug = this.options_.options.debug;
+            this.temasys = this.options_.options.temasys;
+
+            if (this.temasys && (this.recordAudio || this.recordVideo || this.recordAnimation)) {
+                throw new Error();
+            }
 
             // video/canvas settings
             this.videoFrameWidth = this.options_.options.frameWidth;
@@ -762,7 +767,15 @@
                 this.displayVolumeControl(false);
 
                 // start stream
-                this.load(URL.createObjectURL(this.stream));
+                if (this.temasys) {
+                    this.mediaElement = AdapterJS.attachMediaStream(this.mediaElement, this.stream);
+                    //this.load(URL.createObjectURL(this.stream));
+                } else {
+
+                    this.load(URL.createObjectURL(this.stream));
+                }
+
+
                 this.mediaElement.play();
             }
         },
@@ -845,6 +858,7 @@
 
                     // start recording stream
                     this.engine.start();
+                    this.player().trigger('startRecord');
                 }
                 else
                 {
@@ -853,7 +867,7 @@
                 }
 
                 // notify UI
-                this.player().trigger('startRecord');
+
             }
         },
 
@@ -1329,19 +1343,23 @@
          */
         createSnapshot: function()
         {
-            var recordCanvas = this.captureFrame();
 
-            // turn the canvas data into base-64 data with a PNG header
-            this.player().recordedData = recordCanvas.toDataURL('image/png');
+            var callback = function (recordCanvas) {
+                // turn the canvas data into base-64 data with a PNG header
+                this.player().recordedData = recordCanvas.toDataURL('image/png');
 
-            // hide preview video
-            this.mediaElement.style.display = 'none';
+                // hide preview video
+                this.mediaElement.style.display = 'none';
 
-            // show the snapshot
-            this.player().recordCanvas.show();
+                // show the snapshot
+                this.player().recordCanvas.show();
 
-            // stop recording
-            this.stop();
+                // stop recording
+                this.stop();cd 
+                this.player().trigger('startRecord');
+            };
+
+            this.captureFrame(callback.bind(this));
         },
 
         /**
@@ -1361,7 +1379,7 @@
         /**
          * Capture frame from camera and copy data to canvas.
          */
-        captureFrame: function()
+        captureFrame: function(callback)
         {
             var recordCanvas = this.player().recordCanvas.el().firstChild;
 
@@ -1370,12 +1388,29 @@
             recordCanvas.width = this.player().width();
             recordCanvas.height = this.player().height();
 
-            // get a frame of the stream and copy it onto the canvas
-            recordCanvas.getContext('2d').drawImage(
-                this.mediaElement, 0, 0,
-                recordCanvas.width,
-                recordCanvas.height
-            );
+            if (this.temasys) {
+                var base64 = this.mediaElement.getFrame();
+                var image = new Image();
+                image.onload = function () {
+                    recordCanvas.getContext('2d').
+                        drawImage(image, 0, 0, recordCanvas.width, recordCanvas.height);
+                    callback(recordCanvas);
+                };
+                image.setAttribute('src', 'data:image/png;base64,' + base64);
+
+
+            } else {
+                // get a frame of the stream and copy it onto the canvas
+                recordCanvas.getContext('2d').drawImage(
+                    this.mediaElement, 0, 0,
+                    recordCanvas.width,
+                    recordCanvas.height
+                );
+                callback(recordCanvas);
+            }
+
+
+
 
             return recordCanvas;
         },
@@ -1396,6 +1431,7 @@
             this.displayVolumeControl(false);
 
             // start or resume live preview
+
             this.load(URL.createObjectURL(this.stream));
             this.mediaElement.play();
         },
@@ -1867,7 +1903,8 @@
         // and produces good color mapping at reasonable speeds.
         // Values greater than 20 do not yield significant improvements
         // in speed.
-        animationQuality: 10
+        animationQuality: 10,
+        temasys: false
     };
 
     /**
